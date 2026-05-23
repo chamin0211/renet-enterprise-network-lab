@@ -1,0 +1,14 @@
+name: renet-test
+
+topology:
+  nodes:
+    host1:
+      kind: linux
+      image: wbitt/network-multitool:latest
+
+    host2:
+      kind: linux
+      image: wbitt/network-multitool:latest
+
+  links:
+    - endpoints: ["host1:eth1", "host2:eth1"]
