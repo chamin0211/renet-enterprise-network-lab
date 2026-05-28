@@ -1,0 +1,65 @@
+name: renet_vlan_routing
+
+topology:
+  nodes:
+    dev-host:
+      kind: linux
+      image: nicolaka/netshoot:latest
+      cmd: sleep infinity
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.10.10.10/24 dev eth1
+        - bash -lc 'ip route del default || true'
+        - ip route add default via 10.10.10.1
+
+    server-host:
+      kind: linux
+      image: nicolaka/netshoot:latest
+      cmd: sleep infinity
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.10.40.10/24 dev eth1
+        - bash -lc 'ip route del default || true'
+        - ip route add default via 10.10.40.1
+
+    core-r1:
+      kind: linux
+      image: nicolaka/netshoot:latest
+      cmd: sleep infinity
+      sysctls:
+        net.ipv4.ip_forward: 1
+      exec:
+        - ip link set eth1 up
+        - ip link add link eth1 name eth1.10 type vlan id 10
+        - ip link add link eth1 name eth1.40 type vlan id 40
+        - ip link set eth1.10 up
+        - ip link set eth1.40 up
+        - ip addr add 10.10.10.1/24 dev eth1.10
+        - ip addr add 10.10.40.1/24 dev eth1.40
+        - sysctl -w net.ipv4.ip_forward=1
+
+    access-sw1:
+      kind: linux
+      image: nicolaka/netshoot:latest
+      cmd: sleep infinity
+      exec:
+        - ip link add br0 type bridge vlan_filtering 1
+        - ip link set br0 up
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip link set eth3 up
+        - ip link set eth1 master br0
+        - ip link set eth2 master br0
+        - ip link set eth3 master br0
+        - bash -lc 'bridge vlan del dev eth1 vid 1 || true'
+        - bash -lc 'bridge vlan del dev eth2 vid 1 || true'
+        - bash -lc 'bridge vlan del dev eth3 vid 1 || true'
+        - bridge vlan add dev eth1 vid 10 pvid untagged
+        - bridge vlan add dev eth2 vid 40 pvid untagged
+        - bridge vlan add dev eth3 vid 10
+        - bridge vlan add dev eth3 vid 40
+
+  links:
+    - endpoints: ["dev-host:eth1", "access-sw1:eth1"]
+    - endpoints: ["server-host:eth1", "access-sw1:eth2"]
+    - endpoints: ["core-r1:eth1", "access-sw1:eth3"]
